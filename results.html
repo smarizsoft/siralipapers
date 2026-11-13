@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results - PakPapers</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        body { background-color: #ffffff; color: #202124; }
+
+        /* Top Search Header */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            padding: 15px 25px;
+            border-bottom: 1px solid #ebebeb;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .logo { font-size: 26px; font-weight: bold; text-decoration: none; }
+        .logo span:nth-child(1) { color: #4285F4; }
+        .logo span:nth-child(2) { color: #EA4335; }
+        .logo span:nth-child(3) { color: #FBBC05; }
+        .logo span:nth-child(4) { color: #4285F4; }
+        .logo span:nth-child(5) { color: #34A853; }
+        .logo span:nth-child(6) { color: #EA4335; }
+
+        .filter-summary { font-size: 14px; color: #5f6368; }
+
+        /* Main Layout: Left Results, Right Instant Answer */
+        .container {
+            display: flex;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+            gap: 30px;
+        }
+
+        .results-list { flex: 1; max-width: 650px; }
+        .result-stats { font-size: 13px; color: #70757a; margin-bottom: 20px; }
+
+        /* Google Style Result Card */
+        .result-item {
+            margin-bottom: 26px;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            transition: background 0.2s;
+        }
+        .result-item:hover { background-color: #f8f9fa; border-color: #dadce0; }
+
+        .meta-line { font-size: 12px; color: #202124; margin-bottom: 4px; }
+        .meta-badge {
+            background: #e8f0fe;
+            color: #1967d2;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: bold;
+            margin-right: 6px;
+        }
+
+        .question-link {
+            font-size: 18px;
+            color: #1a0dab;
+            text-decoration: none;
+            cursor: pointer;
+            display: block;
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+        .question-link:hover { text-decoration: underline; }
+        .question-b { margin-top: 8px; padding-left: 10px; border-left: 3px solid #34A853; }
+
+        /* Instant Answer Drawer / Modal (No Page Refresh) */
+        .answer-panel {
+            flex: 1;
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+            max-height: 88vh;
+            overflow-y: auto;
+            border: 1px solid #dadce0;
+            border-radius: 12px;
+            padding: 22px;
+            background: #ffffff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            display: none; /* Hidden until clicked */
+        }
+
+        .answer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 12px;
+            margin-bottom: 15px;
+        }
+        .close-btn {
+            background: #f1f3f4;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .q-box { background: #f8f9fa; padding: 14px; border-radius: 8px; margin-bottom: 18px; }
+        .ans-box { margin-bottom: 18px; padding: 14px; border: 1px solid #e0e0e0; border-radius: 8px; }
+        .ans-title { font-weight: bold; color: #188038; margin-bottom: 8px; font-size: 15px; }
+
+        /* Media Rendering (Images & Videos) */
+        .media-img { max-width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid #ddd; }
+        .media-video { width: 100%; height: 260px; border-radius: 6px; margin-top: 8px; border: none; }
+
+        @media (max-width: 850px) {
+            .container { flex-direction: column; }
+            .answer-panel { position: fixed; bottom: 0; left: 0; right: 0; top: 10%; z-index: 999; max-height: 90vh; border-radius: 16px 16px 0 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <a href="index.html" class="logo">
+            <span>P</span><span>a</span><span>k</span><span>P</span><span>a</span><span>p</span>ers
+        </a>
+        <div class="filter-summary" id="filterSummary">Loading filters...</div>
+    </div>
+
+    <div class="container">
+        <!-- Left Side: Search Results -->
+        <div class="results-list">
+            <div class="result-stats" id="resultStats">Fetching questions from database...</div>
+            <div id="resultsContainer"></div>
+        </div>
+
+        <!-- Right Side: Instant Answer View (Opens without refresh) -->
+        <div class="answer-panel" id="answerPanel">
+            <div class="answer-header">
+                <span id="panelMeta" style="font-size: 13px; color: #5f6368; font-weight: bold;"></span>
+                <button class="close-btn" onclick="closeAnswer()">✕ Close</button>
+            </div>
+            <div id="answerContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // YAHAN APNI GOOGLE SHEET KA PUBLISHED CSV LINK PASTE KARAIN
+        const SHEET_CSV_URL = "YOUR_GOOGLE_SHEET_CSV_LINK_HERE";
+
+        // Demo Data (Jab tak aap apna CSV link nahi lagatay, yeh test karne ke liye chalay ga)
+        const DEMO_DATA = [
+            {
+                id: "Q-0001",
+                board: "Karachi Board",
+                class: "10th",
+                subject: "Physics",
+                question_a: "State Newton's Second Law of Motion and derive F = ma.",
+                question_b: "A force of 20N moves a body of mass 4kg. Find its acceleration.",
+                asking_year: "2023 Annual & 2021",
+                answer_1: "Newton's Second Law states that when a net force acts on a body, it produces acceleration in the direction of force. Formula: F = ma.",
+                answer_2: "Numerical Solution: Given F = 20N, m = 4kg. Using a = F/m => a = 20/4 = 5 m/s².",
+                answer_3: "https://youtube.com"
+            }
+        ];
+
+        let allQuestions = [];
+
+        // URL se search filters parhna
+        const params = new URLSearchParams(window.location.search);
+        const query = (params.get('q') || '').toLowerCase();
+        const boardFilter = params.get('board') || '';
+        const classFilter = params.get('class') || '';
+        const subjectFilter = params.get('subject') || '';
+
+        document.getElementById('filterSummary').innerText =
+            `Filters: ${boardFilter || 'All Boards'} | ${classFilter || 'All Classes'} | ${subjectFilter || 'All Subjects'} ${query ? '| Keyword: ' + query : ''}`;
+
+        // Helper: Text, Image, ya Video ko pehchan kar HTML mein badalna
+        function renderContent(content) {
+            if (!content || content.trim() === "") return "";
+            const val = content.trim();
+
+            // Check if YouTube Video Link
+            if (val.includes("://youtube.com") || val.includes("youtu.be/")) {
+                let videoId = val.includes("v=") ? val.split("v=")[1].split("&")[0] : val.split("youtu.be/")[1];
+                return `<iframe class="media-video" src="https://youtube.com{videoId}" allowfullscreen></iframe>`;
+            }
+
+            // Check if Google Drive Link (Convert to direct preview/image)
+            if (val.includes("://google.com")) {
+                const match = val.match(/\/d\/(.+?)\//);
+                if (match && match[1]) {
+                    return `<img class="media-img" src="https://://google.com/uc?export=view&id=${match[1]}" alt="Question/Answer Image">`;
+                }
+            }
+
+            // Check if Direct Image URL (.jpg, .png, .webp)
+            if (val.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+                return `<img class="media-img" src="${val}" alt="Visual Content">`;
+            }
+
+            // Otherwise plain text
+            return `<p style="line-height: 1.6; margin-top: 5px;">${val}</p>`;
+        }
+
+        // Data Load Karna
+        async function loadData() {
+            if (SHEET_CSV_URL === "YOUR_GOOGLE_SHEET_CSV_LINK_HERE") {
+                allQuestions = DEMO_DATA;
+                displayResults();
+                return;
+            }
+
+            try {
+                const res = await fetch(SHEET_CSV_URL);
+                const csvText = await res.text();
+                allQuestions = parseCSV(csvText);
+                displayResults();
+            } catch (err) {
+                document.getElementById('resultStats').innerText = "Error loading Google Sheet data.";
+            }
+        }
+
+        // Simple CSV Parser
+        function parseCSV(csv) {
+            const lines = csv.split("\n").filter(l => l.trim() !== "");
+            const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+            return lines.slice(1).map(line => {
+                const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                let obj = {};
+                headers.forEach((h, i) => {
+                    obj[h] = (values[i] || "").replace(/^"|"$/g, "").trim();
+                });
+                return obj;
+            });
+        }
+
+        // Results Filter aur Show Karna
+        function displayResults() {
+            const filtered = allQuestions.filter(item => {
+                const matchBoard = !boardFilter || (item.board && item.board.toLowerCase() === boardFilter.toLowerCase());
+                const matchClass = !classFilter || (item.class && item.class.toLowerCase() === classFilter.toLowerCase());
+                const matchSubject = !subjectFilter || (item.subject && item.subject.toLowerCase() === subjectFilter.toLowerCase());
+                const matchQuery = !query || JSON.stringify(item).toLowerCase().includes(query);
